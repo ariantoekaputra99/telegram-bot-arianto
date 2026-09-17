@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from bot_telegram import build_application, contains_blocked_content
