@@ -8,6 +8,8 @@ A Telegram bot project focused on practical community automation, including mode
 
 - Community moderation automation
 - Link and mention filtering
+- Removal of forwarded messages from non-admins
+- Filtering of confidently detected languages other than Indonesian and English
 - Join and welcome workflows
 - Admin bypass for moderation rules
 - Environment-based bot configuration
@@ -16,6 +18,8 @@ A Telegram bot project focused on practical community automation, including mode
 ## 🧰 Stack
 
 **Python · python-telegram-bot 21.7 · Telegram Bot API · pytest · flake8 · GitHub Actions**
+
+Language moderation uses `langdetect` and only removes text when it has enough words and a confident language result. Short or uncertain messages are left alone. Forwarded messages from non-admins are removed regardless of whether they contain text or media; admins bypass all moderation.
 
 ## ⚙️ Configuration
 
