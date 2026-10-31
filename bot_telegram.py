@@ -1,18 +1,45 @@
 import os
 import re
 
+from langdetect import DetectorFactory, LangDetectException, detect_langs
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 
 URL_PATTERN = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
 MENTION_PATTERN = re.compile(r"(?<!\w)@[A-Za-z0-9_]{3,}")
+WORD_PATTERN = re.compile(r"\b[\w']+\b", re.UNICODE)
+MIN_LANGUAGE_WORDS = 4
+MIN_LANGUAGE_LETTERS = 20
+MIN_LANGUAGE_CONFIDENCE = 0.85
+
+DetectorFactory.seed = 0
 
 
 def contains_blocked_content(text: str | None) -> bool:
     if not text:
         return False
     return bool(URL_PATTERN.search(text) or MENTION_PATTERN.search(text))
+
+
+def is_unsupported_language(text: str | None) -> bool:
+    if not text:
+        return False
+
+    words = WORD_PATTERN.findall(text)
+    if len(words) < MIN_LANGUAGE_WORDS:
+        return False
+    if sum(character.isalpha() for character in text) < MIN_LANGUAGE_LETTERS:
+        return False
+
+    try:
+        detections = detect_langs(text)
+    except LangDetectException:
+        return False
+
+    if not detections or detections[0].prob < MIN_LANGUAGE_CONFIDENCE:
+        return False
+    return detections[0].lang not in {"id", "en"}
 
 
 async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -53,13 +80,15 @@ async def filter_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     text = message.text or message.caption
-    if not contains_blocked_content(text):
+    if message.forward_origin is None and not (
+        contains_blocked_content(text) or is_unsupported_language(text)
+    ):
         return
 
     await message.delete()
     await context.bot.send_message(
         chat_id=chat.id,
-        text="Pesan dengan link atau mention dihapus!",
+        text="Pesan forward, link, mention, atau bahasa selain Indonesia dan Inggris dihapus!",
     )
 
 
@@ -79,9 +108,10 @@ def build_application():
     )
     application.add_handler(
         MessageHandler(
-            (filters.TEXT | filters.CaptionRegex(r".")) & ~filters.COMMAND,
+            filters.ALL & filters.ChatType.GROUPS,
             filter_messages,
-        )
+        ),
+        group=1,
     )
     application.add_handler(CommandHandler("start", start))
     return application
